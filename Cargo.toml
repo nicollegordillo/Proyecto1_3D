@@ -1,0 +1,9 @@
+[package]
+name = "Mundo3D"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+minifb = "0.19.0"
+nalgebra-glm = "0.3"
+nalgebra = "0.33.0"
