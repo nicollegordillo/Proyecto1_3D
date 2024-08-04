@@ -1,11 +1,4 @@
-extern crate nalgebra_glm as glm;
-
-pub fn cast_ray(
-    maze: &[Vec<char>],
-    player_x: f32,
-    player_y: f32,
-    angle: f32,
-) -> f32 {
+pub fn cast_ray(maze: &[Vec<char>], player_x: f32, player_y: f32, angle: f32) -> f32 {
     let mut distance = 0.0;
     let step_size = 0.1;
     let max_depth = 100.0;
@@ -16,11 +9,16 @@ pub fn cast_ray(
     while distance < max_depth {
         x += step_size * angle.cos();
         y += step_size * angle.sin();
-        distance += step_size;
+
+        if x < 0.0 || x >= maze[0].len() as f32 || y < 0.0 || y >= maze.len() as f32 {
+            break;
+        }
 
         if maze[y as usize][x as usize] == '+' {
             break;
         }
+
+        distance += step_size;
     }
 
     distance

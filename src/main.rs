@@ -11,13 +11,47 @@ use std::io::{BufRead, BufReader};
 mod framebuffer;
 mod player;
 mod raycaster;
+mod input;
 
 use framebuffer::Framebuffer;
 use player::Player;
 use raycaster::cast_ray;
+use input::process_events;
 
 const CELL_SIZE: usize = 20;
 const FOV: f32 = std::f32::consts::PI / 3.0;
+
+fn render_top_down(framebuffer: &mut Framebuffer, maze: &[Vec<char>], player: &Player, cell_size: usize) {
+    framebuffer.clear();
+    render_maze(framebuffer, maze, cell_size);
+    render_player(framebuffer, player, cell_size);
+    render_ray(framebuffer, maze, player, cell_size);
+}
+
+fn render_first_person(framebuffer: &mut Framebuffer, maze: &[Vec<char>], player: &Player, cell_size: usize) {
+    framebuffer.clear();
+    let ray_count = framebuffer.width;
+    let delta_angle = player.fov / ray_count as f32;
+
+    for i in 0..ray_count {
+        let ray_angle = player.angle - (player.fov / 2.0) + (i as f32) * delta_angle;
+        let distance = cast_ray(maze, player.x, player.y, ray_angle);
+
+        // Map the distance to a height on the screen
+        let wall_height = (framebuffer.height as f32 / distance) as usize;
+        let wall_top = (framebuffer.height as isize / 2) - (wall_height as isize / 2);
+        let wall_bottom = wall_top + wall_height as isize;
+
+        for y in 0..framebuffer.height {
+            let color = if y >= wall_top as usize && y <= wall_bottom as usize {
+                0xFF000000 // Black for walls
+            } else {
+                0xFFFFFFFF // White for empty space
+            };
+            framebuffer.point(i, y, color);
+        }
+    }
+}
 
 fn main() -> Result<(), Box<dyn Error>> {
     let (maze, player_position) = load_maze("maze.txt")?;
@@ -30,10 +64,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut player = Player::new(player_position.1 as f32, player_position.0 as f32, FOV);
 
-    render_maze(&mut framebuffer, &maze, cell_size);
-    render_player(&mut framebuffer, &player, cell_size);
-    render_ray(&mut framebuffer, &maze, &player, cell_size);
-
     let mut window = Window::new(
         "Maze",
         width,
@@ -44,7 +74,21 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
     )?;
 
+    let mut top_down_view = true;
+
     while window.is_open() && !window.is_key_down(Key::Escape) {
+        process_events(&window, &mut player);
+
+        if window.is_key_pressed(Key::Tab, minifb::KeyRepeat::No) {
+            top_down_view = !top_down_view;
+        }
+
+        if top_down_view {
+            render_top_down(&mut framebuffer, &maze, &player, cell_size);
+        } else {
+            render_first_person(&mut framebuffer, &maze, &player, cell_size);
+        }
+
         window.update_with_buffer(&framebuffer.pixels, width, height)?;
     }
 
