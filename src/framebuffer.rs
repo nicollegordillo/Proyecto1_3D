@@ -1,4 +1,4 @@
-
+use crate::raycaster::{cast_ray, Intersect};
 use std::fs::File;
 use std::io::{self, Write};
 use std::path::Path;
@@ -7,7 +7,6 @@ use nalgebra_glm::Vec3;
 
 use crate::draw_line;
 use crate::player::Player;
-use crate::raycaster::cast_ray;
 
 pub struct Framebuffer {
     pub width: usize,
@@ -119,24 +118,27 @@ impl Framebuffer {
         }
     }
 
-    pub fn render_fov(framebuffer: &mut Framebuffer, maze: &[Vec<char>], player: &Type, cell_size: usize) {
-    let ray_count = framebuffer.width;
-    let delta_angle = player.fov / ray_count as f32;
+    pub fn render_fov(framebuffer: &mut Framebuffer, maze: &[Vec<char>], player: &Player, cell_size: usize) {
+        let ray_count = 5;  // Adjusted to 5 rays
+        let delta_angle = player.fov / ray_count as f32;
 
-    for i in 0..ray_count {
-        let ray_angle = player.angle - (player.fov / 2.0) + (i as f32) * delta_angle;
-        let distance = cast_ray(maze, player.x, player.y, ray_angle);
-        let x_end = player.x + distance * ray_angle.cos();
-        let y_end = player.y + distance * ray_angle.sin();
+        for i in 0..ray_count {
+            let ray_angle = player.angle - (player.fov / 2.0) + (i as f32) * delta_angle;
+            let intersect = cast_ray(maze, player.x, player.y, ray_angle);
+            let distance = intersect.distance;
 
-        let x0 = (player.x as usize) * cell_size;
-        let y0 = (player.y as usize) * cell_size;
-        let x1 = (x_end as usize) * cell_size;
-        let y1 = (y_end as usize) * cell_size;
+            let x_end = player.x + distance * ray_angle.cos();
+            let y_end = player.y + distance * ray_angle.sin();
 
-        draw_line(framebuffer, x0, y0, x1, y1, 0xFFFF0000);
+            let x0 = (player.x as usize) * cell_size;
+            let y0 = (player.y as usize) * cell_size;
+            let x1 = (x_end as usize) * cell_size;
+            let y1 = (y_end as usize) * cell_size;
+
+            draw_line(framebuffer, x0, y0, x1, y1, 0xFFFF0000);
+        }
     }
-}
+
 
     pub fn fill_polygon(&mut self, points: &[Vec3], color: u32) {
         if points.len() < 3 {

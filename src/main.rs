@@ -1,7 +1,7 @@
 extern crate nalgebra as na;
 extern crate nalgebra_glm as glm;
 extern crate minifb;
-
+use std::cmp::{min, max};
 use minifb::{Key, Window, WindowOptions};
 use glm::Vec3;
 use std::error::Error;
@@ -25,44 +25,24 @@ fn render_top_down(framebuffer: &mut Framebuffer, maze: &[Vec<char>], player: &P
     framebuffer.clear();
     render_maze(framebuffer, maze, cell_size);
     render_player(framebuffer, player, cell_size);
-    render_ray(framebuffer, maze, player, cell_size);
+    framebuffer::Framebuffer::render_fov(framebuffer, maze, player, cell_size);
 }
 
 fn render_first_person(framebuffer: &mut Framebuffer, maze: &[Vec<char>], player: &Player, cell_size: usize) {
     framebuffer.clear();
-    let ray_count = framebuffer.width;
-    let delta_angle = player.fov / ray_count as f32;
-
-    for i in 0..ray_count {
-        let ray_angle = player.angle - (player.fov / 2.0) + (i as f32) * delta_angle;
-        let distance = cast_ray(maze, player.x, player.y, ray_angle);
-
-        // Map the distance to a height on the screen
-        let wall_height = (framebuffer.height as f32 / distance) as usize;
-        let wall_top = (framebuffer.height as isize / 2) - (wall_height as isize / 2);
-        let wall_bottom = wall_top + wall_height as isize;
-
-        for y in 0..framebuffer.height {
-            let color = if y >= wall_top as usize && y <= wall_bottom as usize {
-                0xFF000000 // Black for walls
-            } else {
-                0xFFFFFFFF // White for empty space
-            };
-            framebuffer.point(i, y, color);
-        }
-    }
+    framebuffer::Framebuffer::render_fov(framebuffer, maze, player, cell_size);
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let (maze, player_position) = load_maze("maze.txt")?;
-    let cell_size = CELL_SIZE;
+    let cell_size = 50;  // Example value, adjust as needed
     let width = maze[0].len() * cell_size;
     let height = maze.len() * cell_size;
 
     let mut framebuffer = Framebuffer::new(width, height);
     framebuffer.clear();
 
-    let mut player = Player::new(player_position.1 as f32, player_position.0 as f32, FOV);
+    let mut player = Player::new(player_position.1 as f32, player_position.0 as f32, 60.0); // Example FOV value, adjust as needed
 
     let mut window = Window::new(
         "Maze",
@@ -86,7 +66,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         if top_down_view {
             render_top_down(&mut framebuffer, &maze, &player, cell_size);
         } else {
-            render_first_person(&mut framebuffer, &maze, &player, cell_size);
+            render_3D(&mut framebuffer, &maze, &player);
         }
 
         window.update_with_buffer(&framebuffer.pixels, width, height)?;
@@ -94,6 +74,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
 
 fn load_maze(filename: &str) -> Result<(Vec<Vec<char>>, (usize, usize)), Box<dyn Error>> {
     let file = File::open(filename)?;
@@ -142,18 +123,7 @@ fn render_player(framebuffer: &mut Framebuffer, player: &Player, cell_size: usiz
     }
 }
 
-fn render_ray(framebuffer: &mut Framebuffer, maze: &[Vec<char>], player: &Player, cell_size: usize) {
-    let distance = cast_ray(maze, player.x, player.y, player.angle);
-    let x_end = player.x + distance * player.angle.cos();
-    let y_end = player.y + distance * player.angle.sin();
 
-    let x0 = (player.x as usize) * cell_size;
-    let y0 = (player.y as usize) * cell_size;
-    let x1 = (x_end as usize) * cell_size;
-    let y1 = (y_end as usize) * cell_size;
-
-    draw_line(framebuffer, x0, y0, x1, y1, 0xFFFF0000);
-}
 
 fn draw_line(framebuffer: &mut Framebuffer, x0: usize, y0: usize, x1: usize, y1: usize, color: u32) {
     let dx = (x1 as isize - x0 as isize).abs();
@@ -178,6 +148,34 @@ fn draw_line(framebuffer: &mut Framebuffer, x0: usize, y0: usize, x1: usize, y1:
         if e2 <= dx {
             err += dx;
             y += sy;
+        }
+    }
+}
+
+
+pub fn render_3D(framebuffer: &mut Framebuffer, maze: &[Vec<char>], player: &Player) {
+    let num_rays = framebuffer.width;
+
+    let hw = framebuffer.width as f32 / 2.0; // precalculated half width
+    let hh = framebuffer.height as f32 / 2.0; // precalculated half height
+    framebuffer.set_background_color(0x0c0b38);
+    framebuffer.set_foreground_color(0xebdc7f);
+
+    for i in 0..num_rays {
+        let current_ray = i as f32 / num_rays as f32; // current ray divided by total rays
+        let a = player.angle - (player.fov / 2.0) + (player.fov * current_ray);
+        let intersect = cast_ray(maze, player.x, player.y, a);
+
+        let stake_height = framebuffer.height as f32 / intersect.distance;
+        let stake_top = (hh - (stake_height / 2.0)).max(0.0) as usize;
+        let stake_bottom = (hh + (stake_height / 2.0)).min(framebuffer.height as f32) as usize;
+
+        for y in stake_top..stake_bottom {
+            if i < framebuffer.width as usize && y < framebuffer.height as usize {
+                framebuffer.point(i, y, 0xebdc7f);
+            } else {
+                println!("Point out of bounds: i = {}, y = {}", i, y);
+            }
         }
     }
 }

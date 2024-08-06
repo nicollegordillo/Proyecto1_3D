@@ -3,7 +3,7 @@ use minifb::{Key, Window};
 use crate::player::Player;
 
 const MOVE_SPEED: f32 = 0.1;
-const TURN_SPEED: f32 = 0.05;
+const TURN_SPEED: f32 = std::f32::consts::PI / 30.0;
 
 pub fn process_events(window: &Window, player: &mut Player) {
     if window.is_key_down(Key::W) {
