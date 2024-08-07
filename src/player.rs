@@ -1,5 +1,3 @@
-extern crate nalgebra_glm as glm;
-
 pub struct Player {
     pub x: f32,
     pub y: f32,
@@ -8,7 +6,7 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(x: f32, y: f32, fov: f32) -> Player {
+    pub fn new(x: f32, y: f32, fov: f32) -> Self {
         Player {
             x,
             y,

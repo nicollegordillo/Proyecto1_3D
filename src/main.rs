@@ -25,12 +25,11 @@ fn render_top_down(framebuffer: &mut Framebuffer, maze: &[Vec<char>], player: &P
     framebuffer.clear();
     render_maze(framebuffer, maze, cell_size);
     render_player(framebuffer, player, cell_size);
-    framebuffer::Framebuffer::render_fov(framebuffer, maze, player, cell_size);
 }
 
-fn render_first_person(framebuffer: &mut Framebuffer, maze: &[Vec<char>], player: &Player, cell_size: usize) {
+fn render_first_person(framebuffer: &mut Framebuffer, maze: &[Vec<char>], player: &Player) {
     framebuffer.clear();
-    framebuffer::Framebuffer::render_fov(framebuffer, maze, player, cell_size);
+    framebuffer::Framebuffer::render_fov(framebuffer, maze, player);
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -42,7 +41,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut framebuffer = Framebuffer::new(width, height);
     framebuffer.clear();
 
-    let mut player = Player::new(player_position.1 as f32, player_position.0 as f32, 60.0); // Example FOV value, adjust as needed
+    let mut player = Player::new(player_position.1 as f32, player_position.0 as f32, FOV); // Example FOV value, adjust as needed
 
     let mut window = Window::new(
         "Maze",
@@ -57,7 +56,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut top_down_view = true;
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        process_events(&window, &mut player);
+        process_events(&window, &mut player, &maze);
 
         if window.is_key_pressed(Key::Tab, minifb::KeyRepeat::No) {
             top_down_view = !top_down_view;
@@ -66,7 +65,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         if top_down_view {
             render_top_down(&mut framebuffer, &maze, &player, cell_size);
         } else {
-            render_3D(&mut framebuffer, &maze, &player);
+            render_first_person(&mut framebuffer, &maze, &player);
         }
 
         window.update_with_buffer(&framebuffer.pixels, width, height)?;
@@ -74,7 +73,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
-
 
 fn load_maze(filename: &str) -> Result<(Vec<Vec<char>>, (usize, usize)), Box<dyn Error>> {
     let file = File::open(filename)?;
@@ -122,36 +120,6 @@ fn render_player(framebuffer: &mut Framebuffer, player: &Player, cell_size: usiz
         }
     }
 }
-
-
-
-fn draw_line(framebuffer: &mut Framebuffer, x0: usize, y0: usize, x1: usize, y1: usize, color: u32) {
-    let dx = (x1 as isize - x0 as isize).abs();
-    let sx = if x0 < x1 { 1 } else { -1 };
-    let dy = -(y1 as isize - y0 as isize).abs();
-    let sy = if y0 < y1 { 1 } else { -1 };
-    let mut err = dx + dy;
-
-    let mut x = x0 as isize;
-    let mut y = y0 as isize;
-
-    loop {
-        framebuffer.point(x as usize, y as usize, color);
-        if x == x1 as isize && y == y1 as isize {
-            break;
-        }
-        let e2 = 2 * err;
-        if e2 >= dy {
-            err += dy;
-            x += sx;
-        }
-        if e2 <= dx {
-            err += dx;
-            y += sy;
-        }
-    }
-}
-
 
 pub fn render_3D(framebuffer: &mut Framebuffer, maze: &[Vec<char>], player: &Player) {
     let num_rays = framebuffer.width;
