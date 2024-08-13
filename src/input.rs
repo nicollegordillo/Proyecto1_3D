@@ -5,28 +5,37 @@ use crate::player::Player;
 const MOVE_SPEED: f32 = 0.1;
 const TURN_SPEED: f32 = std::f32::consts::PI / 30.0;
 
-pub fn process_events(window: &Window, player: &mut Player, maze: &[Vec<char>]) {
+pub fn process_events(window: &Window, player: &mut Player, maze: &[Vec<char>], prev_mouse_x: &mut Option<f32>) {
+    let move_speed = 0.1; // Adjust the speed to suit your game
+    let turn_speed = 0.05;
+
     if window.is_key_down(Key::W) {
-        let new_x = player.x + MOVE_SPEED * player.angle.cos();
-        let new_y = player.y + MOVE_SPEED * player.angle.sin();
-        if !is_wall(maze, new_x, new_y) {
-            player.x = new_x;
-            player.y = new_y;
-        }
+        player.move_forward(move_speed, maze);
     }
+
     if window.is_key_down(Key::S) {
-        let new_x = player.x - MOVE_SPEED * player.angle.cos();
-        let new_y = player.y - MOVE_SPEED * player.angle.sin();
-        if !is_wall(maze, new_x, new_y) {
-            player.x = new_x;
-            player.y = new_y;
-        }
+        player.move_backward(move_speed, maze);
     }
+
     if window.is_key_down(Key::A) {
-        player.angle -= TURN_SPEED;
+        player.turn_left(turn_speed);
     }
+
     if window.is_key_down(Key::D) {
-        player.angle += TURN_SPEED;
+        player.turn_right(turn_speed);
+    }
+
+    // Mouse-based horizontal movement
+    if let Some((mouse_x, _mouse_y)) = window.get_mouse_pos(minifb::MouseMode::Pass) {
+        if let Some(prev_x) = *prev_mouse_x {
+            let delta_x = mouse_x - prev_x;
+
+            // Adjust the player's angle based on mouse movement
+            player.angle += delta_x * TURN_SPEED;
+        }
+
+        // Update the previous mouse position
+        *prev_mouse_x = Some(mouse_x);
     }
 }
 

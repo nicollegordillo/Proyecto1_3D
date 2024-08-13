@@ -34,14 +34,14 @@ fn render_first_person(framebuffer: &mut Framebuffer, maze: &[Vec<char>], player
 
 fn main() -> Result<(), Box<dyn Error>> {
     let (maze, player_position) = load_maze("maze.txt")?;
-    let cell_size = 50;  // Example value, adjust as needed
-    let width = maze[0].len() * cell_size;
-    let height = maze.len() * cell_size;
+    let cell_size = 10; // Adjusted for the small 2D map
+    let width = 600;  // Adjust screen width for the main window
+    let height = 600; // Adjust screen height for the main window
 
     let mut framebuffer = Framebuffer::new(width, height);
     framebuffer.clear();
 
-    let mut player = Player::new(player_position.1 as f32, player_position.0 as f32, FOV); // Example FOV value, adjust as needed
+    let mut player = Player::new(player_position.1 as f32, player_position.0 as f32, FOV);
 
     let mut window = Window::new(
         "Maze",
@@ -53,21 +53,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
     )?;
 
-    let mut top_down_view = true;
+    let mut prev_mouse_x: Option<f32> = None;
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        process_events(&window, &mut player, &maze);
+        process_events(&window, &mut player, &maze, &mut prev_mouse_x);
 
-        if window.is_key_pressed(Key::Tab, minifb::KeyRepeat::No) {
-            top_down_view = !top_down_view;
-        }
-
-        if top_down_view {
-            render_top_down(&mut framebuffer, &maze, &player, cell_size);
-        } else {
-            render_first_person(&mut framebuffer, &maze, &player);
-        }
-
+        framebuffer.render_fov_with_2d(&maze, &player, cell_size);
+        
         window.update_with_buffer(&framebuffer.pixels, width, height)?;
     }
 
