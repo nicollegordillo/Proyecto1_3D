@@ -77,49 +77,78 @@ impl Framebuffer {
         }
     }
 }
-    pub fn render_fov_with_2d(&mut self, maze: &[Vec<char>], player: &Player, cell_size: usize) {
-        // Render the 3D FOV
-        self.clear();
-        self.render_fov(maze, player);
+pub fn render_fov_with_2d(&mut self, maze: &[Vec<char>], player: &Player, cell_size: usize, cat_positions: &[na::Point3<f32>]) {
+    // Render the 3D FOV
+    self.clear();
+    self.render_fov(maze, player);
 
-        // Define the size and position of the 2D map in the corner
-        let map_width = maze[0].len() * cell_size;
-        let map_height = maze.len() * cell_size;
-        let offset_x = self.width - map_width - 10; // 10px padding from the right
-        let offset_y = 10; // 10px padding from the top
+    // Define the size and position of the 2D map in the corner
+    let map_width = maze[0].len() * cell_size;
+    let map_height = maze.len() * cell_size;
+    let offset_x = self.width - map_width - 10; // 10px padding from the right
+    let offset_y = 10; // 10px padding from the top
 
-        // Render the 2D maze in the corner
-        for (row, line) in maze.iter().enumerate() {
-            for (col, &cell) in line.iter().enumerate() {
-                let color = match cell {
-                    '+' | '-' | '|' => 0xFF000000, // Black for walls
-                    'p' => 0xFF00FF00,              // Green for player
-                    'g' => 0xFFFF0000,              // Red for goal
-                    _ => 0xFFFFFFFF,                // White for empty space
-                };
+    // Render the 2D maze in the corner
+    for (row, line) in maze.iter().enumerate() {
+        for (col, &cell) in line.iter().enumerate() {
+            let color = match cell {
+                '+' | '-' | '|' => 0xFF000000, // Black for walls
+                'p' => 0xFF00FF00,              // Green for player
+                'g' => 0xFFFF0000,              // Red for goal
+                _ => 0xFFFFFFFF,                // White for empty space
+            };
 
-                for dx in 0..cell_size {
-                    for dy in 0..cell_size {
-                        let x = offset_x + col * cell_size + dx;
-                        let y = offset_y + row * cell_size + dy;
+            for dx in 0..cell_size {
+                for dy in 0..cell_size {
+                    let x = offset_x + col * cell_size + dx;
+                    let y = offset_y + row * cell_size + dy;
+                    if x < self.width && y < self.height {
                         self.point(x, y, color);
                     }
                 }
             }
         }
+    }
 
-        // Render the player's position on the 2D map
-        // Calculate player's position on the 2D map
-            let player_x = offset_x + ((player.x * cell_size as f32).floor() as usize);
-            let player_y = offset_y + ((player.y * cell_size as f32).floor() as usize);
+    // Render the player's position on the 2D map
+    let player_x = offset_x + ((player.x * cell_size as f32).floor() as usize);
+    let player_y = offset_y + ((player.y * cell_size as f32).floor() as usize);
 
-// Render the player on the 2D map
-for dx in 0..cell_size {
-    for dy in 0..cell_size {
-        self.point(player_x + dx, player_y + dy, 0xFF00FF00);
+    for dx in 0..cell_size {
+        for dy in 0..cell_size {
+            let px = player_x + dx;
+            let py = player_y + dy;
+            if px < self.width && py < self.height {
+                self.point(px, py, 0xFF00FF00); // Green for player
+            }
+        }
+    }
+
+    // Render the cat positions as small dots on the 2D map
+    let cat_dot_radius = cell_size / 4; // Adjust size of the dot if needed
+    for cat_position in cat_positions {
+        // Extract x and y coordinates from Point3
+        let cat_x = cat_position.x;
+        let cat_y = cat_position.y;
+
+        // Calculate cat position on the 2D map
+        let cat_x = offset_x + (cat_x * cell_size as f32).floor() as usize;
+        let cat_y = offset_y + (cat_y * cell_size as f32).floor() as usize;
+
+        // Draw a dot representing the cat
+        for dx in 0..cat_dot_radius {
+            for dy in 0..cat_dot_radius {
+                let dot_x = cat_x + dx;
+                let dot_y = cat_y + dy;
+                if dot_x < self.width && dot_y < self.height {
+                    self.point(dot_x, dot_y, 0xFFFF00FF); // Purple dot for cats
+                }
+            }
+        }
     }
 }
-    }
+
+
     fn cast_ray(&self, player: &Player, maze: &[Vec<char>], ray_angle: f32) -> (f32, Option<char>) {
         // Calculate the direction of the ray
         let mut ray_x = player.x;
@@ -167,4 +196,4 @@ for dx in 0..cell_size {
         (max_distance, None)
     }
 
-}
+}     
