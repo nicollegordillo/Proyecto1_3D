@@ -109,13 +109,16 @@ impl Framebuffer {
         }
 
         // Render the player's position on the 2D map
-        let player_x = offset_x + (player.x as usize) * cell_size;
-        let player_y = offset_y + (player.y as usize) * cell_size;
-        for dx in 0..cell_size {
-            for dy in 0..cell_size {
-                self.point(player_x + dx, player_y + dy, 0xFF00FF00);
-            }
-        }
+        // Calculate player's position on the 2D map
+            let player_x = offset_x + ((player.x * cell_size as f32).floor() as usize);
+            let player_y = offset_y + ((player.y * cell_size as f32).floor() as usize);
+
+// Render the player on the 2D map
+for dx in 0..cell_size {
+    for dy in 0..cell_size {
+        self.point(player_x + dx, player_y + dy, 0xFF00FF00);
+    }
+}
     }
     fn cast_ray(&self, player: &Player, maze: &[Vec<char>], ray_angle: f32) -> (f32, Option<char>) {
         // Calculate the direction of the ray

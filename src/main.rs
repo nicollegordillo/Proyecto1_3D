@@ -33,17 +33,24 @@ enum GameState {
     StartScreen,
     Playing,
     SuccessScreen,
+    FailScreen,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let (maze, player_position) = load_maze("maze.txt")?;
     let mut framebuffer = Framebuffer::new(800, 800);
     let mut window = Window::new("Maze", 800, 800, WindowOptions::default())?;
-    let mut player = Player::new(player_position.1 as f32, player_position.0 as f32, FOV);
+    let player_start_pos = (5.0, 5.0);
+    let mut player = Player::new(player_start_pos.1, player_start_pos.0, FOV);
     let mut prev_mouse_x: Option<f32> = None;
 
    let (start_screen_img, start_screen_width, start_screen_height) = load_and_resize_image("image/start_screen.jpeg", 800, 800)?;
    let (success_screen_img, success_screen_width, success_screen_height) = load_and_resize_image("image/success_screen.jpeg", 800, 800)?;
+   let (fail_screen_img, fail_screen_width, fail_screen_height) = load_and_resize_image("image/fail_screen.jpeg", 800, 800)?;
+
+
+   let (cat_img, cat_width, cat_height) = load_and_resize_image("image/cat.png", 50, 50)?; // Adjust size as needed
+   let mut cat_position = (5.0, 20.0);
 
    let mut game_state = GameState::StartScreen;
    let mut selected_level = 0;
@@ -58,25 +65,46 @@ fn main() -> Result<(), Box<dyn Error>> {
 while window.is_open() && !window.is_key_down(Key::Escape) {
     match game_state {
         GameState::StartScreen => {
-                framebuffer.clear();
-                render_image(&mut framebuffer, &start_screen_img, start_screen_width, start_screen_height, 0, 0);
+            framebuffer.clear();
+            render_image(&mut framebuffer, &start_screen_img, start_screen_width, start_screen_height, 0, 0);
 
-                 // Update button selection
-                for (i, button) in buttons.iter_mut().enumerate() {
-                    button.is_selected = i == selected_button;
-                    button.draw(&mut framebuffer);
-                }
+            for (i, button) in buttons.iter_mut().enumerate() {
+                button.is_selected = i == selected_button;
+                button.draw(&mut framebuffer);
+            }
 
-                if let Some(state) = process_start_screen_input(&window, &mut selected_button) {
-                    game_state = state;
-                    if game_state == GameState::Playing {
-                        player = Player::new(player_position.1 as f32, player_position.0 as f32, FOV);
-                    }
+            if let Some(state) = process_start_screen_input(&window, &mut selected_button) {
+                game_state = state;
+                if game_state == GameState::Playing {
+                    player = Player::new(player_position.1 as f32, player_position.0 as f32, FOV);
                 }
+            }
         }
         GameState::Playing => {
             process_events(&window, &mut player, &maze, &mut prev_mouse_x);
             framebuffer.render_fov_with_2d(&maze, &player, CELL_SIZE);
+
+            // Update the cat's position to follow the player
+            cat_position = (
+                cat_position.0 + 0.05 * (player.x - cat_position.0),
+                cat_position.1 + 0.05 * (player.y - cat_position.1),
+            );
+
+            // Render the cat image
+            render_image(
+                &mut framebuffer,
+                &cat_img,
+                cat_width,
+                cat_height,
+                (cat_position.0 * CELL_SIZE as f32) as usize,
+                (cat_position.1 * CELL_SIZE as f32) as usize,
+            );
+
+            // Check for collision with the cat
+            if (player.x - cat_position.0).abs() < 0.5 && (player.y - cat_position.1).abs() < 0.5 {
+                game_state = GameState::FailScreen;
+            }
+
             if maze[player.y as usize][player.x as usize] == 'g' {
                 game_state = GameState::SuccessScreen;
             }
@@ -88,10 +116,18 @@ while window.is_open() && !window.is_key_down(Key::Escape) {
                 game_state = GameState::StartScreen;
             }
         }
+        GameState::FailScreen => {
+            framebuffer.clear();
+            render_image(&mut framebuffer, &fail_screen_img, fail_screen_width, fail_screen_height, 0, 0);
+            if window.is_key_down(Key::Enter) {
+                game_state = GameState::StartScreen;
+            }
+        }
     }
 
     window.update_with_buffer(&framebuffer.pixels, framebuffer.width, framebuffer.height)?;
 }
+
 
 
     Ok(())
@@ -141,19 +177,14 @@ fn render_image(framebuffer: &mut Framebuffer, image: &[u32], image_width: usize
 fn load_maze(filename: &str) -> Result<(Vec<Vec<char>>, (usize, usize)), Box<dyn Error>> {
     let file = File::open(filename)?;
     let reader = BufReader::new(file);
-    let mut player_position = (0, 0);
+    
     let maze: Vec<Vec<char>> = reader
         .lines()
-        .enumerate()
-        .map(|(row, line)| {
-            let line_chars: Vec<char> = line.unwrap().chars().collect();
-            if let Some(col) = line_chars.iter().position(|&c| c == 'p') {
-                player_position = (row, col);
-            }
-            line_chars
-        })
+        .map(|line| line.unwrap().chars().collect())
         .collect();
-    Ok((maze, player_position))
+
+    // No need to find the player's position in the maze file
+    Ok((maze, (1, 1))) // Just return a dummy player position since it's manually set
 }
 
 fn render_maze(framebuffer: &mut Framebuffer, maze: &[Vec<char>], cell_size: usize) {
