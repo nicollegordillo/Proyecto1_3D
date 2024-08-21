@@ -31,7 +31,8 @@ const BUTTON_HEIGHT: usize = 30;
 #[derive(PartialEq)]
 enum GameState {
     StartScreen,
-    Playing,
+    PlayingA,
+    PlayingB,
     SuccessScreen,
     FailScreen,
 }
@@ -85,39 +86,41 @@ fn load_level(level: usize) -> Result<(Vec<Vec<char>>, (usize, usize), Vec<u32>,
     }
 }
 
+// Define a struct to hold the game level data
+struct GameLevel {
+    maze: Vec<Vec<char>>,
+    player_position: (usize, usize),
+    cat_img: Vec<u32>,
+    cat_width: usize,
+    cat_height: usize,
+    cat_positions: Vec<na::Point3<f32>>,
+    bunnies_to_collect: Option<usize>, // Only used in Level B
+}
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let (maze, _player_position) = load_maze("maze.txt")?;
-
     let player_start_pos = (1.0, 1.0);
 
     let mut framebuffer = Framebuffer::new(600, 600);
     let mut window = Window::new("Maze", 600, 600, WindowOptions::default())?;
-    let mut player = Player::new(player_start_pos.1, player_start_pos.0,0.0, FOV);
+    let mut player = Player::new(player_start_pos.1, player_start_pos.0, 0.0, FOV);
     let mut prev_mouse_x: Option<f32> = None;
 
     let (start_screen_img, start_screen_width, start_screen_height) = load_and_resize_image("image/alice_start.jpeg", 600, 600)?;
     let (success_screen_img, success_screen_width, success_screen_height) = load_and_resize_image("image/alice_success.jpeg", 600, 600)?;
     let (fail_screen_img, fail_screen_width, fail_screen_height) = load_and_resize_image("image/alice_fail.jpeg", 600, 600)?;
-
-    let (cat_img, cat_width, cat_height) = load_and_resize_image("image/card.jpeg", 100, 100)?;
-
+    let (wall_texture_img, wall_texture_width, wall_texture_height) = load_and_resize_image("image/wall.jpeg", 100, 200)?;
     let mut game_state = GameState::StartScreen;
     let mut selected_level = 0;
-
+    let wall_texture = wall_texture_img.to_vec();
     let mut buttons = vec![
-        Button::new(250, 200, BUTTON_WIDTH, BUTTON_HEIGHT, "A"),
-        Button::new(250, 250, BUTTON_WIDTH, BUTTON_HEIGHT, "B"),
+        Button::new(100, 400, BUTTON_WIDTH, BUTTON_HEIGHT, "A"),
+        Button::new(100, 450, BUTTON_WIDTH, BUTTON_HEIGHT, "B"),
     ];
 
     let mut selected_button = 0;
 
-    // Define static cat positions
-    let cat_positions = vec![
-        na::Point3::new(2.0, 3.0, 0.0),
-        na::Point3::new(5.0, 7.0, 0.0),
-        // Add more positions as needed
-    ];
+    // Store game level data
+    let mut game_level: Option<GameLevel> = None;
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         match game_state {
@@ -131,43 +134,101 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
 
                 if let Some(state) = process_start_screen_input(&window, &mut selected_button) {
+                    selected_level = selected_button;
                     game_state = state;
-                    if game_state == GameState::Playing {
-                        player = Player::new(player_start_pos.1, player_start_pos.0,0.0, FOV);
+
+                    // Load level data only once
+                    game_level = match selected_level {
+                        0 => {
+                            let (maze, player_position) = load_maze("maze.txt")?;
+                            let (cat_img, cat_width, cat_height) = load_and_resize_image("image/card.jpeg", 100, 100)?;
+                            let cat_positions = vec![
+                                na::Point3::new(2.0, 3.0, 0.0),
+                                na::Point3::new(5.0, 7.0, 0.0),
+                                // Add more positions as needed
+                            ];
+                            Some(GameLevel {
+                                maze,
+                                player_position,
+                                cat_img,
+                                cat_width,
+                                cat_height,
+                                cat_positions,
+                                bunnies_to_collect: None, // No bunnies in Level A
+                            })
+                        }
+                        1 => {
+                            let (maze, player_position) = load_maze("maze2.txt")?;
+                            let (bunny_img, bunny_width, bunny_height) = load_and_resize_image("image/bunny.jpeg", 100, 100)?;
+                            let cat_positions = vec![
+                                na::Point3::new(2.0, 3.0, 0.0),
+                                na::Point3::new(5.0, 7.0, 0.0),
+                                // Add more positions as needed
+                            ];
+                            let bunnies_to_collect = maze.iter().flat_map(|row| row.iter()).filter(|&&c| c == 'b').count(); // Count the bunnies
+                            Some(GameLevel {
+                                maze,
+                                player_position,
+                                cat_img: bunny_img,
+                                cat_width: bunny_width,
+                                cat_height: bunny_height,
+                                cat_positions,
+                                bunnies_to_collect: Some(bunnies_to_collect),
+                            })
+                        }
+                        _ => None,
+                    };
+
+                    // Initialize player position for the level
+                    if let Some(level) = &game_level {
+                        player = Player::new(player_start_pos.1, player_start_pos.0, 0.0, FOV);
                     }
                 }
             }
-            GameState::Playing => {
-                process_events(&window, &mut player, &maze, &mut prev_mouse_x);
+            GameState::PlayingA | GameState::PlayingB => {
+                if let Some(level) = &game_level {
+                    process_events(&window, &mut player, &level.maze, &mut prev_mouse_x);
 
-                let (next_x, next_y) = (player.x, player.y); // Calculate potential new position here if needed
+                    let (next_x, next_y) = (player.x, player.y);
 
-                if !is_colliding_with_wall(&maze, next_x, next_y, 1.0) { // Assuming player size is 1.0
-                    player.x = next_x;
-                    player.y = next_y;
-                }
+                    if !is_colliding_with_wall(&level.maze, next_x, next_y, 1.0) {
+                        player.x = next_x;
+                        player.y = next_y;
+                    }
 
-                framebuffer.render_fov_with_2d(&maze, &player, CELL_SIZE,&cat_positions);
+                    framebuffer.render_fov_with_2d(&level.maze, &player, CELL_SIZE, &level.cat_positions,&wall_texture, wall_texture_width,wall_texture_height);
 
-                // Render the cat images in static positions
-                for cat_position in &cat_positions {
-                    render_cat_in_3d(&mut framebuffer, &cat_img, cat_width, cat_height, cat_position,&player, &maze);
-                }
+                    // Render the cat images in static positions
+                    for cat_position in &level.cat_positions {
+                        render_cat_in_3d(
+                            &mut framebuffer,
+                            &level.cat_img,
+                            level.cat_width,
+                            level.cat_height,
+                            cat_position,
+                            &player,
+                            &level.maze,
+                        );
+                    }
 
-                // Check for collision with any cat
-                let player_pos = na::Point2::new(player.x, player.y);
-                for cat_position in &cat_positions {
-                    let cat_pos = na::Point2::new(cat_position.x, cat_position.y);
-                    if (player_pos - cat_pos).magnitude() < 0.5 { // Adjust collision threshold as needed
-                        game_state = GameState::FailScreen;
-                        break;
+                    // Check for collision with any cat
+                    let player_pos = na::Point2::new(player.x, player.y);
+                    for cat_position in &level.cat_positions {
+                        let cat_pos = na::Point2::new(cat_position.x, cat_position.y);
+                        if (player_pos - cat_pos).magnitude() < 0.5 {
+                            game_state = GameState::FailScreen;
+                            break;
+                        }
+                    }
+
+                    // Check for success condition
+                    if level.maze[player.y as usize][player.x as usize] == 'g' {
+                        game_state = GameState::SuccessScreen;
                     }
                 }
-
-                if maze[player.y as usize][player.x as usize] == 'g' {
-                    game_state = GameState::SuccessScreen;
-                }
             }
+            GameState::PlayingB => {
+             }
             GameState::SuccessScreen => {
                 framebuffer.clear();
                 render_image(&mut framebuffer, &success_screen_img, success_screen_width, success_screen_height, 0, 0);
@@ -189,6 +250,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
 
 const MAX_SCALE: f32 = 2.0; // Limit the maximum scale to avoid excessively large sprites
 
@@ -368,8 +430,8 @@ fn process_start_screen_input(window: &Window, selected_button: &mut usize) -> O
     }
     if window.is_key_down(Key::Enter) {
         match *selected_button {
-            0 => Some(GameState::Playing), // Level 1
-            1 => Some(GameState::Playing), // Level 2
+            0 => Some(GameState::PlayingA), // Level 1
+            1 => Some(GameState::PlayingB), // Level 2
             _ => None,
         }
     } else {

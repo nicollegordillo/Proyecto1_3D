@@ -47,43 +47,66 @@ impl Framebuffer {
         }
     }
 
-    pub fn render_fov(&mut self, maze: &[Vec<char>], player: &Player) {
-    // Ensure walls are rendered correctly based on the player's perspective
+   pub fn render_fov(
+    &mut self,
+    maze: &[Vec<char>],
+    player: &Player,
+    wall_texture: &[u32], // Texture data
+    texture_width: usize, // Texture width
+    texture_height: usize // Texture height
+) {
     for ray in 0..self.width {
-        // Calculate the ray angle
         let ray_angle = (player.angle - player.fov / 2.0) + (ray as f32 / self.width as f32) * player.fov;
+        let intersect = cast_ray(maze, player.x, player.y, ray_angle);
+        let Intersect { distance, wall_type, hit_x } = intersect;
 
-        // Cast the ray and find the wall it hits
-        let (distance, wall_hit) = self.cast_ray(player, maze, ray_angle);
+        if wall_type != ' ' {
+            let distance = distance.max(0.1); // Prevent division by zero or very small values
 
-        if let Some(wall_char) = wall_hit {
-            let color = match wall_char {
-                '+' | '-' | '|' => 0xFF000000, // Black for walls
-                _ => 0xFFFFFFFF,                // Default color
-            };
-
-            // Calculate the height of the wall slice
-            let wall_height = (self.height as f32 / distance) as usize;
-
-            // Ensure wall_height is within valid range
-            let wall_top = max(0, (self.height as isize - wall_height as isize) / 2) as usize;
-            let wall_bottom = min(self.height, wall_top + wall_height);
+            // Calculate texture x based on hit_x position
+            let texture_x = (hit_x * texture_width as f32) as usize % texture_width;
+            let wall_height = (self.height as f32 / distance).clamp(1.0, self.height as f32) as usize;
+            let wall_top = ((self.height as isize - wall_height as isize) / 2) as usize;
+            let wall_bottom = (wall_top + wall_height).min(self.height);
 
             for y in wall_top..wall_bottom {
                 if ray < self.width {
-                    self.point(ray, y, color);
+                    // Calculate texture_y based on the vertical position on the wall
+                    let texture_y = (((y - wall_top) as f32 / wall_height as f32) * texture_height as f32) as usize % texture_height;
+                    let texture_index = (texture_y * texture_width + texture_x).min(texture_width * texture_height - 1);
+
+                    // Retrieve the texture color
+                    let color = wall_texture.get(texture_index).cloned().unwrap_or(0xFF819349);
+
+                    // Optional: Apply wall type effects or colors here
+                    let final_color = match wall_type {
+                        '+' => color,       // No additional effect, use texture color
+                        '-' => color,       // Apply some effect or different color if needed
+                        '|' => color,       // Apply some effect or different color if needed
+                        _ => 0xFF606c38,    // Default to white for unknown types
+                    };
+
+                    self.point(ray, y, final_color);
                 }
             }
         }
     }
 }
-pub fn render_fov_with_2d(&mut self, maze: &[Vec<char>], player: &Player, cell_size: usize, cat_positions: &[na::Point3<f32>]) {
+
+
+
+
+pub fn render_fov_with_2d(&mut self, maze: &[Vec<char>], player: &Player, cell_size: usize, cat_positions: &[na::Point3<f32>],wall_texture: &Vec<u32>, // Texture data
+    texture_width: usize,   // Texture width
+    texture_height: usize ) {
     // Render the 3D FOV
     self.clear();
     self.set_background_color(0xFF8ecae6);
-    self.render_fov(maze, player);
+    self.render_fov(maze, player, wall_texture, // Texture data
+    texture_width,   // Texture width
+    texture_height );
     let ground_color = 0xFF606c38;
-    let ground_start = self.height / 2+25;
+    let ground_start = self.height / 2+27;
     for y in ground_start..self.height {
         for x in 0..self.width {
             self.point(x, y, ground_color);
@@ -103,7 +126,7 @@ pub fn render_fov_with_2d(&mut self, maze: &[Vec<char>], player: &Player, cell_s
                 '+' | '-' | '|' => 0xFF000000, // Black for walls
                 'p' => 0xFF00FF00,              // Green for player
                 'g' => 0xFFFF0000,              // Red for goal
-                _ => 0xFFFFFFFF,                // White for empty space
+                _ => 0xFF819349,                // White for empty space
             };
 
             for dx in 0..cell_size {
