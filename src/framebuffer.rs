@@ -80,7 +80,15 @@ impl Framebuffer {
 pub fn render_fov_with_2d(&mut self, maze: &[Vec<char>], player: &Player, cell_size: usize, cat_positions: &[na::Point3<f32>]) {
     // Render the 3D FOV
     self.clear();
+    self.set_background_color(0xFF8ecae6);
     self.render_fov(maze, player);
+    let ground_color = 0xFF606c38;
+    let ground_start = self.height / 2+25;
+    for y in ground_start..self.height {
+        for x in 0..self.width {
+            self.point(x, y, ground_color);
+        }
+    }
 
     // Define the size and position of the 2D map in the corner
     let map_width = maze[0].len() * cell_size;

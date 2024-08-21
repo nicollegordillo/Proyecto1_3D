@@ -68,21 +68,39 @@ fn is_within_wall(maze: &[Vec<char>], x: f32, y: f32) -> bool {
     }
 }
 
+fn load_level(level: usize) -> Result<(Vec<Vec<char>>, (usize, usize), Vec<u32>, usize, usize, Option<usize>), Box<dyn Error>> {
+    match level {
+        0 => {
+            let (maze, player_position) = load_maze("maze.txt")?;
+            let (cat_img, cat_width, cat_height) = load_and_resize_image("image/card.jpeg", 100, 100)?;
+            Ok((maze, player_position, cat_img, cat_width, cat_height, None)) // Level A: No bunnies to collect
+        }
+        1 => {
+            let (maze, player_position) = load_maze("maze2.txt")?;
+            let (bunny_img, bunny_width, bunny_height) = load_and_resize_image("image/bunny.jpeg", 100, 100)?;
+            let bunnies_to_collect = maze.iter().flat_map(|row| row.iter()).filter(|&&c| c == 'b').count(); // Count the bunnies
+            Ok((maze, player_position, bunny_img, bunny_width, bunny_height, Some(bunnies_to_collect)))
+        }
+        _ => Err("Invalid level".into()),
+    }
+}
+
+
 fn main() -> Result<(), Box<dyn Error>> {
     let (maze, _player_position) = load_maze("maze.txt")?;
 
     let player_start_pos = (1.0, 1.0);
 
-    let mut framebuffer = Framebuffer::new(800, 800);
-    let mut window = Window::new("Maze", 800, 800, WindowOptions::default())?;
+    let mut framebuffer = Framebuffer::new(600, 600);
+    let mut window = Window::new("Maze", 600, 600, WindowOptions::default())?;
     let mut player = Player::new(player_start_pos.1, player_start_pos.0,0.0, FOV);
     let mut prev_mouse_x: Option<f32> = None;
 
-    let (start_screen_img, start_screen_width, start_screen_height) = load_and_resize_image("image/start_screen.jpeg", 800, 800)?;
-    let (success_screen_img, success_screen_width, success_screen_height) = load_and_resize_image("image/success_screen.jpeg", 800, 800)?;
-    let (fail_screen_img, fail_screen_width, fail_screen_height) = load_and_resize_image("image/fail_screen.jpeg", 800, 800)?;
+    let (start_screen_img, start_screen_width, start_screen_height) = load_and_resize_image("image/alice_start.jpeg", 600, 600)?;
+    let (success_screen_img, success_screen_width, success_screen_height) = load_and_resize_image("image/alice_success.jpeg", 600, 600)?;
+    let (fail_screen_img, fail_screen_width, fail_screen_height) = load_and_resize_image("image/alice_fail.jpeg", 600, 600)?;
 
-    let (cat_img, cat_width, cat_height) = load_and_resize_image("image/cat.png", 100, 100)?;
+    let (cat_img, cat_width, cat_height) = load_and_resize_image("image/card.jpeg", 100, 100)?;
 
     let mut game_state = GameState::StartScreen;
     let mut selected_level = 0;
@@ -209,50 +227,41 @@ fn render_cat_in_3d(
     let framebuffer_height = framebuffer.height as f32;
 
     if let Some((x, y, scale)) = project_to_2d(cat_position, player, framebuffer_width, framebuffer_height) {
-        println!("Rendering cat at screen_x: {}, screen_y: {}, scale: {}", x, y, scale);
+        let reduced_scale = scale * 0.5;
 
-        let scaled_width = (cat_width as f32 * scale).min(framebuffer_width);
-        let scaled_height = (cat_height as f32 * scale).min(framebuffer_height);
-        println!("Scaled width: {}, Scaled height: {}", scaled_width, scaled_height);
+        let scaled_width = (cat_width as f32 * reduced_scale).min(framebuffer_width);
+        let scaled_height = (cat_height as f32 * reduced_scale).min(framebuffer_height);
 
-        // Cast a ray directly towards the cat to check for walls
         let angle_to_cat = (cat_position.y - player.y).atan2(cat_position.x - player.x);
         let intersection = cast_ray(maze, player.x, player.y, angle_to_cat);
 
-        // Determine if the cat is behind a wall
         let distance_to_cat = ((cat_position.x - player.x).powi(2) + (cat_position.y - player.y).powi(2)).sqrt();
-        println!("Distance to cat: {}", distance_to_cat);
-
         let cat_visible = intersection.distance >= distance_to_cat;
 
         if !cat_visible {
-            println!("Cat is behind a wall, not rendering.");
-            return; // Don't render the cat if it is completely behind a wall
+            return;
         }
 
-        // Define the render area ensuring it's within bounds
         let start_x = x.saturating_sub(scaled_width as usize / 2);
         let start_y = y.saturating_sub(scaled_height as usize / 2);
         let end_x = (start_x + scaled_width as usize).min(framebuffer_width as usize);
         let end_y = (start_y + scaled_height as usize).min(framebuffer_height as usize);
-        println!("Rendering area: start_x: {}, start_y: {}, end_x: {}, end_y: {}", start_x, start_y, end_x, end_y);
 
-        // Render the scaled cat image
         for dy in 0..scaled_height as usize {
             for dx in 0..scaled_width as usize {
                 let pixel_index = (dy * cat_height / scaled_height as usize) * cat_width + (dx * cat_width / scaled_width as usize);
                 if pixel_index < cat_img.len() {
                     let pixel = cat_img[pixel_index];
-                    let dest_x = start_x + dx;
-                    let dest_y = start_y + dy;
-                    if dest_x < framebuffer_width as usize && dest_y < framebuffer_height as usize {
-                        framebuffer.point(dest_x, dest_y, pixel);
+                    if (pixel >> 24) & 0xFF != 0 { // Only draw if the pixel is not fully transparent
+                        let dest_x = start_x + dx;
+                        let dest_y = start_y + dy;
+                        if dest_x < framebuffer_width as usize && dest_y < framebuffer_height as usize {
+                            framebuffer.point(dest_x, dest_y, pixel);
+                        }
                     }
                 }
             }
         }
-    } else {
-        println!("Cat is outside the player's FOV or not visible.");
     }
 }
 
