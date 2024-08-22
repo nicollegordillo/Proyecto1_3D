@@ -3,11 +3,13 @@ extern crate nalgebra as na;
 extern crate nalgebra_glm as glm;
 extern crate minifb;
 
+use font::draw_char;
 use image::GenericImageView;
 use minifb::{Key, Window, WindowOptions};
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use std::time::{Instant, Duration};
 
 mod framebuffer;
 mod input;
@@ -122,6 +124,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Store game level data
     let mut game_level: Option<GameLevel> = None;
 
+
     while window.is_open() && !window.is_key_down(Key::Escape) {
         match game_state {
             GameState::StartScreen => {
@@ -227,8 +230,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
             }
-            GameState::PlayingB => {
-             }
             GameState::SuccessScreen => {
                 framebuffer.clear();
                 render_image(&mut framebuffer, &success_screen_img, success_screen_width, success_screen_height, 0, 0);
@@ -250,6 +251,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
+
 
 
 const MAX_SCALE: f32 = 2.0; // Limit the maximum scale to avoid excessively large sprites
@@ -428,7 +431,7 @@ fn process_start_screen_input(window: &Window, selected_button: &mut usize) -> O
         *selected_button = (*selected_button + 1 + 2 - 1) % 2; // Wrap around
         std::thread::sleep(std::time::Duration::from_millis(150)); // Simple debounce
     }
-    if window.is_key_down(Key::Enter) {
+    if window.is_key_down(Key::P) {
         match *selected_button {
             0 => Some(GameState::PlayingA), // Level 1
             1 => Some(GameState::PlayingB), // Level 2
